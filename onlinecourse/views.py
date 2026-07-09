@@ -1,3 +1,4 @@
+from .models import Course, Lesson, Instructor, Enrollment, Learner, Question, Choice, Submission
 from django.shortcuts import render
 from django.http import HttpResponseRedirect
 # <HINT> Import any new Models here
@@ -133,4 +134,40 @@ def enroll(request, course_id):
 #def show_exam_result(request, course_id, submission_id):
 
 
+def submit(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    learner = get_object_or_404(Learner, user=request.user)
+    
+    # Check if the user is enrolled
+    try:
+        enrollment = Enrollment.objects.get(learner=learner, course=course)
+    except Enrollment.DoesNotExist:
+        return redirect('onlinecourse:course_details', course_id=course.id)
+    
+    # Create a new submission
+    submission = Submission(enrollment=enrollment)
+    submission.save()
+    
+    # Loop through the questions to grab the user's selected choices
+    for question in course.question_set.all():
+        choice_id = request.POST.get(f'choice_{question.id}')
+        if choice_id:
+            selected_choice = Choice.objects.get(pk=choice_id)
+            submission.choices.add(selected_choice)
+            
+    submission.save()
+    
+    # Redirect to the results page
+    return redirect('onlinecourse:show_exam_result', course_id=course.id, submission_id=submission.id)
 
+
+def show_exam_result(request, course_id, submission_id):
+    course = get_object_or_404(Course, pk=course_id)
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    context = {
+        'course': course,
+        'submission': submission,
+    }
+    
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
